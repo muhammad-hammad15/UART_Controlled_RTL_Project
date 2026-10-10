@@ -128,7 +128,7 @@ module control_logic (
                 default: 
                 begin
                 state <= WAIT_CMD;
-                    current_addr <= 4'd0;
+                current_addr <= 4'd0;
                 bytes_left   <= 4'd0;
                 end
             
