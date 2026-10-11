@@ -6,7 +6,7 @@ module fifo (
     input      [7:0] data_in,
     input            fifo_wr_en,
     input            fifo_rd_en,
-    output     [7:0] data_out,
+    output reg [7:0] data_out,
     output           fifo_empty,
     output           fifo_full
 );
@@ -23,9 +23,6 @@ module fifo (
     assign fifo_empty = (count == 4'd0);
     assign fifo_full  = (count == 4'd8);
 
-    // Oldest FIFO byte is always visible
-    assign data_out = fifo_mem[rd_ptr];
-
     // Sequential block with asynchronous reset
     always @(posedge clk or posedge rst) begin
         if (rst) 
@@ -33,6 +30,7 @@ module fifo (
             wr_ptr   <= 3'd0;
             rd_ptr   <= 3'd0;
             count    <= 4'd0;
+            data_out <= 8'd0;
         end
         else 
         begin
@@ -43,7 +41,10 @@ module fifo (
             end
 
             if (fifo_rd_en && !fifo_empty)         // FIFO read Combinationally and read pointer will increment
+            begin 
+                data_out <= fifo_mem[rd_ptr];
                 rd_ptr   <= rd_ptr + 1'b1;    
+            end
 
             // Update FIFO count
             case ({(fifo_wr_en && !fifo_full),(fifo_rd_en && !fifo_empty)})

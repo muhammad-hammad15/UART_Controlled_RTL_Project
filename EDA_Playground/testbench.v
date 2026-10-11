@@ -30,13 +30,11 @@ module uart_top_tb;
         input [3:0] byte_count;
         input [3:0] start_addr;
         input       write_not_read;
+        reg   [2:0] count_field;
 
         begin
-            make_cmd = {
-                byte_count - 1'b1,
-                start_addr,
-                write_not_read
-            };
+            count_field = byte_count - 1'b1;
+            make_cmd = {count_field, start_addr, write_not_read};
         end
     endfunction
 
@@ -218,6 +216,7 @@ module uart_top_tb;
             test_pass[i] = 1'b1;
 
         repeat (3) @(posedge clk);
+        @(negedge clk);
         rst = 1'b0;
         repeat (2) @(posedge clk);
           
@@ -291,6 +290,8 @@ module uart_top_tb;
         show_result(4);
 
         // TEST 5
+        test_header(5, "WRAP-AROUND WRITE");
+
         send_command(4'd4, 4'd14, 1'b1);
 
         $display("  Payload : DE AD BE EF");

@@ -14,126 +14,133 @@ module control_logic (
     output reg       tx_fifo_wr_en
 );
 
-    // States Declaration
-    localparam [1:0] WAIT_CMD = 2'b00, WRITE_DATA = 2'b01, READ_DATA  = 2'b10;
+    // States
+    localparam [2:0] WAIT_CMD    = 3'b000,
+                     DECODE_CMD  = 3'b001,
+                     WRITE_FETCH = 3'b010,
+                     WRITE_DATA  = 3'b011,
+                     READ_DATA   = 3'b100;
 
-    reg [1:0] state;
+    reg [2:0] state;
+    reg [2:0] next_state;
     reg [3:0] current_addr;
+    reg [3:0] next_addr;
     reg [3:0] bytes_left;
+    reg [3:0] next_bytes_left;
 
-    // Output Logic
-    always @(*) 
-    begin
+    // 1. State/Register Block
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            state        <= WAIT_CMD;
+            current_addr <= 4'd0;
+            bytes_left   <= 4'd0;
+        end
+        else begin
+            state        <= next_state;
+            current_addr <= next_addr;
+            bytes_left   <= next_bytes_left;
+        end
+    end
+
+    // 2. Output Logic
+    always @(*) begin
         rx_fifo_rd_en = 1'b0;
         mem_wr_en     = 1'b0;
         mem_rd_en     = 1'b0;
         tx_fifo_wr_en = 1'b0;
 
-        mem_wr_addr   = current_addr;
-        mem_rd_addr   = current_addr;
+        mem_wr_addr = current_addr;
+        mem_rd_addr = current_addr;
 
         case (state)
-        WAIT_CMD: 
-        begin
-        if (!rx_fifo_empty)
-        rx_fifo_rd_en = 1'b1;
-        end
-
-        WRITE_DATA: 
-            begin
-            if (!rx_fifo_empty) 
-            begin
-                rx_fifo_rd_en = 1'b1;
-                mem_wr_en     = 1'b1;
-            end
+            WAIT_CMD: begin
+                if (!rx_fifo_empty)
+                    rx_fifo_rd_en = 1'b1;
             end
 
-        READ_DATA: 
-        begin
-        if (!tx_fifo_full) 
-        begin
-            mem_rd_en     = 1'b1;
-            tx_fifo_wr_en = 1'b1;
-        end
-        end
+            WRITE_FETCH: begin
+                if (!rx_fifo_empty)
+                    rx_fifo_rd_en = 1'b1;
+            end
 
-        default: 
-        begin
-        if (!rx_fifo_empty)
-        rx_fifo_rd_en = 1'b1;
-        end
+            WRITE_DATA: begin
+                mem_wr_en = 1'b1;
+            end
+
+            READ_DATA: begin
+                if (!tx_fifo_full) begin
+                    mem_rd_en     = 1'b1;
+                    tx_fifo_wr_en = 1'b1;
+                end
+            end
+
+            default: begin
+                rx_fifo_rd_en = 1'b0;
+                mem_wr_en     = 1'b0;
+                mem_rd_en     = 1'b0;
+                tx_fifo_wr_en = 1'b0;
+            end
         endcase
     end
 
-    // State Register and Next State Logic
-    always @(posedge clk or posedge rst) 
-    begin
-        if (rst) 
-        begin
-            state <= WAIT_CMD;
-            current_addr <= 4'd0;
-            bytes_left   <= 4'd0;
-        end
-        
-        else begin
+    // 3. Next State Logic
+    always @(*) begin
+        next_state      = state;
+        next_addr       = current_addr;
+        next_bytes_left = bytes_left;
+
         case (state)
-            WAIT_CMD: 
-            begin
-                if (!rx_fifo_empty) 
-                begin
-                    current_addr <= rx_data_decode[4:1];
-                    bytes_left   <= {1'b0, rx_data_decode[7:5]} + 4'd1;
+            WAIT_CMD: begin
+                if (!rx_fifo_empty)
+                    next_state = DECODE_CMD;
+            end
+
+            DECODE_CMD: begin
+                next_addr       = rx_data_decode[4:1];
+                next_bytes_left = {1'b0, rx_data_decode[7:5]} + 4'd1;
 
                 if (rx_data_decode[0])
-                    state <= WRITE_DATA;
+                    next_state = WRITE_FETCH;
                 else
-                    state <= READ_DATA;
+                    next_state = READ_DATA;
+            end
+
+            WRITE_FETCH: begin
+                if (!rx_fifo_empty)
+                    next_state = WRITE_DATA;
+            end
+
+            WRITE_DATA: begin
+                if (bytes_left == 4'd1) begin
+                    next_bytes_left = 4'd0;
+                    next_state      = WAIT_CMD;
+                end
+                else begin
+                    next_bytes_left = bytes_left - 1'b1;
+                    next_addr       = current_addr + 1'b1;
+                    next_state      = WRITE_FETCH;
                 end
             end
 
-            WRITE_DATA: 
-            begin
-                if (!rx_fifo_empty) 
-                begin
-                    if (bytes_left == 4'd1) 
-                    begin
-                    bytes_left <= 4'd0;
-                    state <= WAIT_CMD;
+            READ_DATA: begin
+                if (!tx_fifo_full) begin
+                    if (bytes_left == 4'd1) begin
+                        next_bytes_left = 4'd0;
+                        next_state      = WAIT_CMD;
                     end
-                    else 
-                    begin
-                        bytes_left   <= bytes_left - 1'b1;
-                        current_addr <= current_addr + 1'b1;
-                    end
-                end
-            end
-
-            READ_DATA: 
-            begin
-                if (!tx_fifo_full) 
-                begin
-                    if (bytes_left == 4'd1) 
-                    begin
-                    bytes_left <= 4'd0;
-                    state <= WAIT_CMD;
-                    end
-                    else 
-                    begin
-                        bytes_left   <= bytes_left - 1'b1;
-                        current_addr <= current_addr + 1'b1;
+                    else begin
+                        next_bytes_left = bytes_left - 1'b1;
+                        next_addr       = current_addr + 1'b1;
                     end
                 end
             end
 
-                default: 
-                begin
-                state <= WAIT_CMD;
-                current_addr <= 4'd0;
-                bytes_left   <= 4'd0;
-                end
-            
-            endcase
-        end
+            default: begin
+                next_state      = WAIT_CMD;
+                next_addr       = 4'd0;
+                next_bytes_left = 4'd0;
+            end
+        endcase
     end
 
 endmodule
