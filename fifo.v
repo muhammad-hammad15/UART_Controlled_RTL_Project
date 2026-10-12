@@ -40,7 +40,7 @@ module fifo (
                 wr_ptr <= wr_ptr + 1'b1;
             end
 
-            if (fifo_rd_en && !fifo_empty)         // FIFO read Combinationally and read pointer will increment
+            if (fifo_rd_en && !fifo_empty)         // FIFO read and read pointer will increment
             begin 
                 data_out <= fifo_mem[rd_ptr];
                 rd_ptr   <= rd_ptr + 1'b1;    
