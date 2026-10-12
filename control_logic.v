@@ -99,7 +99,6 @@ module control_logic (
                 mem_rd_en     = 1'b0;
                 tx_fifo_wr_en = 1'b0;
             end
-
         endcase
     end
 
@@ -120,19 +119,15 @@ module control_logic (
 
                 if (!rx_fifo_empty)
                     next_state = DECODE_CMD;
-
             end
-
-
+            
             // W/R = 1 -> WRITE_FETCH
             // W/R = 0 -> READ_DATA
             DECODE_CMD: begin
 
-                next_addr =
-                    rx_data_decode[4:1];
+                next_addr = rx_data_decode[4:1];
 
-                next_bytes_left =
-                    {1'b0, rx_data_decode[7:5]} + 4'd1;
+                next_bytes_left = {1'b0, rx_data_decode[7:5]} + 4'd1;
 
                 if (rx_data_decode[0])
                     next_state = WRITE_FETCH;
@@ -148,10 +143,8 @@ module control_logic (
 
                 if (!rx_fifo_empty)
                     next_state = WRITE_DATA;
-
             end
-
-
+            
             // bytes_left > 1 -> WRITE_FETCH
             // bytes_left = 1 -> WAIT_CMD
             WRITE_DATA: begin
@@ -160,20 +153,15 @@ module control_logic (
 
                     next_bytes_left = 4'd0;
                     next_state      = WAIT_CMD;
-
                 end
                 else begin
 
                     next_bytes_left = bytes_left - 1'b1;
                     next_addr       = current_addr + 1'b1;
                     next_state      = WRITE_FETCH;
-
                 end
-
             end
 
-
-            // Diagram:
             // bytes_left > 1 -> stay READ_DATA
             // bytes_left = 1 -> WAIT_CMD
             READ_DATA: begin
@@ -182,32 +170,21 @@ module control_logic (
                 if (!tx_fifo_full) begin
 
                     if (bytes_left == 4'd1) begin
-
                         next_bytes_left = 4'd0;
                         next_state      = WAIT_CMD;
-
                     end
                     else begin
-
                         next_bytes_left = bytes_left - 1'b1;
                         next_addr       = current_addr + 1'b1;
                         next_state      = READ_DATA;
-
                     end
-
                 end
-
             end
-
-
             default: begin
-
                 next_state      = WAIT_CMD;
                 next_addr       = 4'd0;
                 next_bytes_left = 4'd0;
-
             end
-
         endcase
     end
 
